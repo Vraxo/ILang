@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace ILang;
+﻿namespace ILang;
 
 public class Tokenizer
 {
@@ -12,29 +9,37 @@ public class Tokenizer
 
         while (currentIndex < input.Length)
         {
-            // Skip whitespace (including newlines)
+            // Skip whitespace
             while (currentIndex < input.Length && char.IsWhiteSpace(input[currentIndex]))
+            {
                 currentIndex++;
-
+            }
             if (currentIndex >= input.Length) break;
 
             char currentChar = input[currentIndex];
 
-            // Handle multi-character operators (e.g., '->')
+            // Handle multi-character operators (e.g., '->', '==')
             if (currentChar == '-' && currentIndex + 1 < input.Length && input[currentIndex + 1] == '>')
             {
                 tokens.Add("->");
                 currentIndex += 2;
             }
-            // Handle identifiers/keywords (including 'let', 'fun')
+            else if (currentChar == '=')
+            {
+                tokens.Add("=");
+                currentIndex++;
+            }
+            // Handle identifiers/keywords (including 'let')
             else if (char.IsLetter(currentChar) || currentChar == '_')
             {
                 int start = currentIndex;
-                while (currentIndex < input.Length && (char.IsLetterOrDigit(input[currentIndex]) || input[currentIndex] == '_'))
+                while (currentIndex < input.Length &&
+                      (char.IsLetterOrDigit(input[currentIndex]) || input[currentIndex] == '_'))
                 {
                     currentIndex++;
                 }
-                tokens.Add(input.Substring(start, currentIndex - start));
+                string token = input.Substring(start, currentIndex - start);
+                tokens.Add(token);
             }
             // Handle strings
             else if (currentChar == '"')
@@ -47,7 +52,7 @@ public class Tokenizer
                 }
                 if (currentIndex >= input.Length)
                 {
-                    throw new InvalidOperationException("Unterminated string literal.");
+                    Error("Unterminated string literal.");
                 }
                 currentIndex++;
                 tokens.Add(input.Substring(start, currentIndex - start));
@@ -56,7 +61,8 @@ public class Tokenizer
             else if (char.IsDigit(currentChar) || currentChar == '.')
             {
                 int start = currentIndex;
-                while (currentIndex < input.Length && (char.IsDigit(input[currentIndex]) || input[currentIndex] == '.'))
+                while (currentIndex < input.Length &&
+                      (char.IsDigit(input[currentIndex]) || input[currentIndex] == '.'))
                 {
                     currentIndex++;
                 }
@@ -71,5 +77,11 @@ public class Tokenizer
         }
 
         return tokens;
+    }
+
+    private void Error(string message)
+    {
+        Console.Error.WriteLine($"Error: {message}");
+        Environment.Exit(1);
     }
 }
