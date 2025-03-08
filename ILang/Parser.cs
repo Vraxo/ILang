@@ -163,7 +163,7 @@ public class Parser
                 stack.Pop(); // Discard '('
                 pos++;
             }
-            else if ("+-*/".Contains(tokens[pos]))
+            else if (IsOperator(tokens[pos]))
             {
                 while (stack.Count > 0 && GetPrec(stack.Peek()) >= GetPrec(tokens[pos]))
                     output.Add(new Operation { Command = stack.Pop() });
@@ -191,19 +191,23 @@ public class Parser
         return output;
     }
 
+    private bool IsOperator(string token) =>
+        token is "+" or "-" or "*" or "/" or "==";
+
+    private int GetPrec(string op) => op switch
+    {
+        "*" or "/" => 2,
+        "+" or "-" => 1,
+        "==" => 0,  // Lowest precedence
+        _ => 0
+    };
+
     private bool IsIdentifier(string token)
     {
         return _currentFunc != null &&
               (_currentFunc.Variables.Contains(token) ||
                _currentFunc.Parameters.Any(p => p.Name == token));
     }
-
-    private int GetPrec(string op) => op switch
-    {
-        "*" or "/" => 2,
-        "+" or "-" => 1,
-        _ => 0
-    };
 
     private ValueObjectType ParseType(string type) => type switch
     {

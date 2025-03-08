@@ -74,10 +74,10 @@ public class Tokenizer
                 tokens.Add("->");
                 currentIndex += 2;
             }
-            else if (currentChar == '=')
+            else if (currentChar == '=' && currentIndex + 1 < input.Length && input[currentIndex + 1] == '=')
             {
-                tokens.Add("=");
-                currentIndex++;
+                tokens.Add("==");
+                currentIndex += 2;
             }
             // Handle single-character symbols
             else
