@@ -2,368 +2,225 @@
 
 public class Parser
 {
-    private Function _currentFunction;
+    private Function? _currentFunc;
 
     public ParsedProgram Parse(List<string> tokens)
     {
-        var parsedProgram = new ParsedProgram();
-        int currentIndex = 0;
+        var program = new ParsedProgram();
+        int pos = 0;
 
-        while (currentIndex < tokens.Count)
+        while (pos < tokens.Count)
         {
-            if (tokens[currentIndex] == "fun")
+            if (tokens[pos] == "fun")
             {
-                currentIndex++;
-                var function = ParseFunction(tokens, ref currentIndex);
-                parsedProgram.Functions.Add(function);
+                pos++;
+                var func = ParseFunction(tokens, ref pos);
+                program.Functions.Add(func);
             }
             else
             {
-                currentIndex++;
+                pos++; // Always advance position
             }
         }
 
-        return parsedProgram;
+        return program;
     }
 
-    private Function ParseFunction(List<string> tokens, ref int currentIndex)
+    private Function ParseFunction(List<string> tokens, ref int pos)
     {
-        _currentFunction = new Function();
+        _currentFunc = new Function { Name = tokens[pos++] };
 
-        // Parse function name
-        if (currentIndex >= tokens.Count)
-        {
-            Error("Expected function name after 'fun'.");
-        }
-        _currentFunction.Name = tokens[currentIndex++];
+        Expect(tokens, ref pos, "(");
+        _currentFunc.Parameters = ParseParams(tokens, ref pos);
+        Expect(tokens, ref pos, "->");
+        _currentFunc.ReturnType = ParseType(tokens[pos++]);
 
-        // Parse '('
-        if (currentIndex >= tokens.Count || tokens[currentIndex] != "(")
-        {
-            Error("Expected '(' after function name.");
-        }
-        currentIndex++;
+        Expect(tokens, ref pos, "{");
+        _currentFunc.Operations = ParseBlock(tokens, ref pos);
 
-        // Parse parameters
-        _currentFunction.Parameters = ParseParameters(tokens, ref currentIndex);
-
-        // Parse '->'
-        if (currentIndex >= tokens.Count || tokens[currentIndex] != "->")
-        {
-            Error("Expected '->' after function parameters.");
-        }
-        currentIndex++;
-
-        // Parse return type
-        if (currentIndex >= tokens.Count)
-        {
-            Error("Expected return type after '->'.");
-        }
-        _currentFunction.ReturnType = ParseType(tokens[currentIndex++]);
-
-        // Parse '{'
-        if (currentIndex >= tokens.Count || tokens[currentIndex] != "{")
-        {
-            Error("Expected '{' after return type.");
-        }
-        currentIndex++;
-
-        // Parse function body
-        _currentFunction.Operations = ParseBody(tokens, ref currentIndex);
-
-        // Parse '}'
-        if (currentIndex >= tokens.Count || tokens[currentIndex] != "}")
-        {
-            Error("Expected '}' after function body.");
-        }
-        currentIndex++;
-
-        return _currentFunction;
+        var parsedFunc = _currentFunc;
+        _currentFunc = null;
+        return parsedFunc;
     }
 
-    private List<ValueObject> ParseParameters(List<string> tokens, ref int currentIndex)
+    private List<ValueObject> ParseParams(List<string> tokens, ref int pos)
     {
         var parameters = new List<ValueObject>();
-
-        while (currentIndex < tokens.Count && tokens[currentIndex] != ")")
+        while (tokens[pos] != ")")
         {
-            // Parameter name
-            if (!IsIdentifier(tokens[currentIndex]))
-            {
-                Error("Expected parameter name.");
-            }
-            string paramName = tokens[currentIndex++];
-
-            // Colon after name
-            if (currentIndex >= tokens.Count || tokens[currentIndex] != ":")
-            {
-                Error("Expected ':' after parameter name.");
-            }
-            currentIndex++;
-
-            // Parameter type
-            if (currentIndex >= tokens.Count || !IsTypeToken(tokens[currentIndex]))
-            {
-                Error("Expected type after ':'.");
-            }
-            ValueObjectType paramType = ParseType(tokens[currentIndex++]);
-
-            parameters.Add(new ValueObject { Name = paramName, Type = paramType });
-
-            // Check for comma or closing ')'
-            if (currentIndex < tokens.Count && tokens[currentIndex] == ",")
-            {
-                currentIndex++;
-                if (currentIndex >= tokens.Count || tokens[currentIndex] == ")")
-                {
-                    Error("Expected parameter after ','.");
-                }
-            }
-            else if (currentIndex < tokens.Count && tokens[currentIndex] != ")")
-            {
-                Error("Expected ',' or ')' after parameter.");
-            }
+            var param = new ValueObject { Name = tokens[pos++] };
+            Expect(tokens, ref pos, ":");
+            param.Type = ParseType(tokens[pos++]);
+            parameters.Add(param);
+            if (tokens[pos] == ",") pos++;
         }
-
-        if (currentIndex >= tokens.Count || tokens[currentIndex] != ")")
-        {
-            Error("Expected ')' after parameters.");
-        }
-        currentIndex++;
-
+        pos++; // Skip closing ')'
         return parameters;
     }
 
-    private List<Operation> ParseBody(List<string> tokens, ref int currentIndex)
+    private List<Operation> ParseBlock(List<string> tokens, ref int pos)
     {
-        var operations = new List<Operation>();
-
-        while (currentIndex < tokens.Count && tokens[currentIndex] != "}")
+        var ops = new List<Operation>();
+        while (pos < tokens.Count && tokens[pos] != "}")
         {
-            string token = tokens[currentIndex];
-
-            if (token == "print")
+            switch (tokens[pos])
             {
-                currentIndex++;
-                operations.AddRange(ParseFunctionCall("print", tokens, ref currentIndex));
-            }
-            else if (token == "let")
-            {
-                currentIndex++;
-                operations.AddRange(ParseLetStatement(tokens, ref currentIndex));
-            }
-            else if (IsIdentifier(token))
-            {
-                string funcName = token;
-                currentIndex++;
-                operations.AddRange(ParseFunctionCall(funcName, tokens, ref currentIndex));
-            }
-            else
-            {
-                Error($"Unknown statement: {token}");
+                case "let":
+                    ops.AddRange(ParseLet(tokens, ref pos));
+                    break;
+                case "if":
+                    ops.AddRange(ParseIfStatement(tokens, ref pos));
+                    break;
+                case "print":
+                    ops.AddRange(ParseCall("print", tokens, ref pos));
+                    break;
+                default:
+                    if (char.IsLetter(tokens[pos][0]))
+                        ops.AddRange(ParseCall(tokens[pos++], tokens, ref pos));
+                    else
+                        pos++; // Prevent infinite loop
+                    break;
             }
         }
-
-        return operations;
+        pos++; // Skip closing '}'
+        return ops;
     }
 
-    private List<Operation> ParseLetStatement(List<string> tokens, ref int currentIndex)
+    private List<Operation> ParseLet(List<string> tokens, ref int pos)
     {
-        var operations = new List<Operation>();
+        pos++; // Skip 'let'
+        string varName = tokens[pos++];
+        _currentFunc!.Variables.Add(varName);
 
-        // Parse variable name
-        if (currentIndex >= tokens.Count || !IsIdentifier(tokens[currentIndex]))
-        {
-            Error("Expected variable name after 'let'.");
-        }
-        string varName = tokens[currentIndex++];
+        Expect(tokens, ref pos, ":");
+        pos++; // Skip type
+        Expect(tokens, ref pos, "=");
 
-        // Track the variable in the current function
-        _currentFunction.Variables.Add(varName);
-
-        // Parse colon and type
-        if (currentIndex >= tokens.Count || tokens[currentIndex] != ":")
-        {
-            Error("Expected ':' after variable name.");
-        }
-        currentIndex++;
-
-        if (currentIndex >= tokens.Count || !IsTypeToken(tokens[currentIndex]))
-        {
-            Error("Expected type after ':'.");
-        }
-        ValueObjectType varType = ParseType(tokens[currentIndex++]);
-
-        // Parse '='
-        if (currentIndex >= tokens.Count || tokens[currentIndex] != "=")
-        {
-            Error("Expected '=' in variable declaration.");
-        }
-        currentIndex++;
-
-        // Parse initializer expression
-        operations.AddRange(ParseExpression(tokens, ref currentIndex, new[] { ";" }));
-
-        // Add store operation
-        operations.Add(new Operation { Command = "store_var", Argument = varName });
-
-        // Parse ';'
-        if (currentIndex >= tokens.Count || tokens[currentIndex] != ";")
-        {
-            Error("Expected ';' after variable declaration.");
-        }
-        currentIndex++;
-
-        return operations;
+        var ops = ParseExpr(tokens, ref pos);
+        ops.Add(new Operation { Command = "store_var", Argument = varName });
+        Expect(tokens, ref pos, ";");
+        return ops;
     }
 
-    private List<Operation> ParseFunctionCall(string functionName, List<string> tokens, ref int currentIndex)
+    private List<Operation> ParseIfStatement(List<string> tokens, ref int pos)
     {
-        var operations = new List<Operation>();
+        pos++; // Skip 'if'
+        Expect(tokens, ref pos, "(");
 
-        // Parse '('
-        if (currentIndex >= tokens.Count || tokens[currentIndex] != "(")
+        // Parse condition FIRST
+        var conditionOps = ParseExpr(tokens, ref pos);
+
+        Expect(tokens, ref pos, ")");
+        Expect(tokens, ref pos, "{");
+        var ifOperations = ParseBlock(tokens, ref pos);
+        var elseOperations = new List<Operation>();
+
+        if (pos < tokens.Count && tokens[pos] == "else")
         {
-            Error("Expected '(' after function name.");
-        }
-        currentIndex++;
-
-        // Parse arguments as expressions
-        operations.AddRange(ParseExpression(tokens, ref currentIndex, new[] { ")" }));
-
-        // Parse ')'
-        if (currentIndex >= tokens.Count || tokens[currentIndex] != ")")
-        {
-            Error("Expected ')' after arguments.");
-        }
-        currentIndex++;
-
-        // Parse ';' if it's a statement
-        if (currentIndex < tokens.Count && tokens[currentIndex] == ";")
-        {
-            currentIndex++;
+            pos++;
+            Expect(tokens, ref pos, "{");
+            elseOperations = ParseBlock(tokens, ref pos);
         }
 
-        operations.Add(new Operation { Command = "call", Argument = functionName });
-        return operations;
+        // Combine condition and if operation
+        var result = new List<Operation>();
+        result.AddRange(conditionOps);
+        result.Add(new Operation
+        {
+            Command = "if",
+            NestedOperations = ifOperations,
+            ElseOperations = elseOperations
+        });
+
+        return result;
     }
 
-    private List<Operation> ParseExpression(List<string> tokens, ref int currentIndex, string[] terminators)
+    private List<Operation> ParseCall(string name, List<string> tokens, ref int pos)
+    {
+        pos++; // Skip '('
+        var ops = ParseExpr(tokens, ref pos);
+        Expect(tokens, ref pos, ")");
+        if (pos < tokens.Count && tokens[pos] == ";") pos++;
+        ops.Add(new Operation { Command = "call", Argument = name });
+        return ops;
+    }
+
+    private List<Operation> ParseExpr(List<string> tokens, ref int pos)
     {
         var output = new List<Operation>();
-        var operatorStack = new Stack<string>();
+        var stack = new Stack<string>();
 
-        while (currentIndex < tokens.Count && !terminators.Contains(tokens[currentIndex]))
+        while (pos < tokens.Count && !"});".Contains(tokens[pos]))
         {
-            string token = tokens[currentIndex];
-
-            if (IsNumber(token))
+            if (tokens[pos] == "(")
             {
-                // Push numeric literals
-                output.Add(new Operation { Command = "push", Argument = token });
-                currentIndex++;
+                stack.Push(tokens[pos++]);
             }
-            else if (token.StartsWith("\"") && token.EndsWith("\""))
+            else if (tokens[pos] == ")")
             {
-                // Push string literals
-                output.Add(new Operation { Command = "push", Argument = token });
-                currentIndex++;
+                while (stack.Peek() != "(")
+                    output.Add(new Operation { Command = stack.Pop() });
+                stack.Pop(); // Discard '('
+                pos++;
             }
-            else if (IsIdentifier(token))
+            else if ("+-*/".Contains(tokens[pos]))
             {
-                // Check if the identifier is a parameter or declared variable
-                if (_currentFunction.Parameters.Any(p => p.Name == token) || _currentFunction.Variables.Contains(token))
-                {
-                    // Load the variable's value
-                    output.Add(new Operation { Command = "load_var", Argument = token });
-                    currentIndex++;
-                }
-                else if (currentIndex + 1 < tokens.Count && tokens[currentIndex + 1] == "(")
-                {
-                    // Handle function calls
-                    string nestedFunc = token;
-                    currentIndex++;
-                    output.AddRange(ParseFunctionCall(nestedFunc, tokens, ref currentIndex));
-                }
-                else
-                {
-                    throw new InvalidOperationException($"Undefined variable or function: {token}");
-                }
-            }
-            else if (token == "+" || token == "-" || token == "*" || token == "/")
-            {
-                // Handle operators with precedence
-                while (operatorStack.Count > 0 && GetPrecedence(operatorStack.Peek()) >= GetPrecedence(token))
-                {
-                    output.Add(new Operation { Command = operatorStack.Pop() });
-                }
-                operatorStack.Push(token);
-                currentIndex++;
-            }
-            else if (token == "(")
-            {
-                // Handle opening parenthesis
-                operatorStack.Push(token);
-                currentIndex++;
-            }
-            else if (token == ")")
-            {
-                // Handle closing parenthesis
-                while (operatorStack.Peek() != "(")
-                {
-                    output.Add(new Operation { Command = operatorStack.Pop() });
-                }
-                operatorStack.Pop(); // Discard '('
-                currentIndex++;
+                while (stack.Count > 0 && GetPrec(stack.Peek()) >= GetPrec(tokens[pos]))
+                    output.Add(new Operation { Command = stack.Pop() });
+                stack.Push(tokens[pos++]);
             }
             else
             {
-                throw new InvalidOperationException($"Unexpected token in expression: {token}");
+                output.Add(new Operation
+                {
+                    Command = IsIdentifier(tokens[pos]) ? "load_var" : "push",
+                    Argument = tokens[pos]
+                });
+                pos++;
             }
         }
 
-        // Pop remaining operators
-        while (operatorStack.Count > 0)
+        // Add remaining operators (excluding parentheses)
+        while (stack.Count > 0)
         {
-            output.Add(new Operation { Command = operatorStack.Pop() });
+            string op = stack.Pop();
+            if (op != "(" && op != ")")
+                output.Add(new Operation { Command = op });
         }
 
         return output;
     }
 
-    private int GetPrecedence(string op)
+    private bool IsIdentifier(string token)
     {
-        return op switch
-        {
-            "+" or "-" => 1,
-            "*" or "/" => 2,
-            _ => 0
-        };
+        return _currentFunc != null &&
+              (_currentFunc.Variables.Contains(token) ||
+               _currentFunc.Parameters.Any(p => p.Name == token));
     }
 
-    private ValueObjectType ParseType(string typeToken)
+    private int GetPrec(string op) => op switch
     {
-        return typeToken switch
-        {
-            "string" => ValueObjectType.String,
-            "num" => ValueObjectType.Number,
-            "void" => ValueObjectType.Void,
-            _ => throw new ArgumentException($"Invalid type: {typeToken}")
-        };
-    }
+        "*" or "/" => 2,
+        "+" or "-" => 1,
+        _ => 0
+    };
 
-    private bool IsIdentifier(string token) =>
-        !string.IsNullOrEmpty(token) && (char.IsLetter(token[0]) || token[0] == '_');
-
-    private bool IsTypeToken(string token) =>
-        token is "string" or "num" or "void";
-
-    private bool IsNumber(string token) =>
-        double.TryParse(token, out _);
-
-    private void Error(string message)
+    private ValueObjectType ParseType(string type) => type switch
     {
-        Console.Error.WriteLine($"Error: {message}");
-        Environment.Exit(1);
+        "num" => ValueObjectType.Number,
+        "bool" => ValueObjectType.Bool,
+        "string" => ValueObjectType.String,
+        _ => ValueObjectType.Void
+    };
+
+    private void Expect(List<string> tokens, ref int pos, string expected)
+    {
+        if (pos >= tokens.Count)
+            throw new Exception($"Unexpected end of input. Expected '{expected}'.");
+
+        if (tokens[pos] != expected)
+            throw new Exception($"Expected '{expected}' at position {pos}, but found '{tokens[pos]}'.");
+
+        pos++;
     }
 }

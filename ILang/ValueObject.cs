@@ -4,6 +4,7 @@ public enum ValueObjectType
 {
     String,
     Number,
+    Bool,
     Void
 }
 

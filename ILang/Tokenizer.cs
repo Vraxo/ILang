@@ -18,28 +18,29 @@ public class Tokenizer
 
             char currentChar = input[currentIndex];
 
-            // Handle multi-character operators (e.g., '->', '==')
-            if (currentChar == '-' && currentIndex + 1 < input.Length && input[currentIndex + 1] == '>')
-            {
-                tokens.Add("->");
-                currentIndex += 2;
-            }
-            else if (currentChar == '=')
-            {
-                tokens.Add("=");
-                currentIndex++;
-            }
-            // Handle identifiers/keywords (including 'let')
-            else if (char.IsLetter(currentChar) || currentChar == '_')
+            // Handle keywords (true, false, if, else, etc.)
+            if (char.IsLetter(currentChar))
             {
                 int start = currentIndex;
-                while (currentIndex < input.Length &&
-                      (char.IsLetterOrDigit(input[currentIndex]) || input[currentIndex] == '_'))
+                while (currentIndex < input.Length && (char.IsLetterOrDigit(input[currentIndex]) || input[currentIndex] == '_'))
                 {
                     currentIndex++;
                 }
                 string token = input.Substring(start, currentIndex - start);
-                tokens.Add(token);
+
+                // Explicitly check for boolean literals
+                if (token is "true" or "false")
+                {
+                    tokens.Add(token); // Add as boolean literal
+                }
+                else if (token is "if" or "else" or "fun" or "let")
+                {
+                    tokens.Add(token); // Add as keyword
+                }
+                else
+                {
+                    tokens.Add(token); // Treat as identifier
+                }
             }
             // Handle strings
             else if (currentChar == '"')
@@ -61,12 +62,22 @@ public class Tokenizer
             else if (char.IsDigit(currentChar) || currentChar == '.')
             {
                 int start = currentIndex;
-                while (currentIndex < input.Length &&
-                      (char.IsDigit(input[currentIndex]) || input[currentIndex] == '.'))
+                while (currentIndex < input.Length && (char.IsDigit(input[currentIndex]) || input[currentIndex] == '.'))
                 {
                     currentIndex++;
                 }
                 tokens.Add(input.Substring(start, currentIndex - start));
+            }
+            // Handle multi-character operators (e.g., '->', '==')
+            else if (currentChar == '-' && currentIndex + 1 < input.Length && input[currentIndex + 1] == '>')
+            {
+                tokens.Add("->");
+                currentIndex += 2;
+            }
+            else if (currentChar == '=')
+            {
+                tokens.Add("=");
+                currentIndex++;
             }
             // Handle single-character symbols
             else
