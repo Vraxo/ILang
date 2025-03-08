@@ -18,7 +18,7 @@ public class Tokenizer
 
             char currentChar = input[currentIndex];
 
-            // Handle keywords (true, false, if, else, etc.)
+            // Handle keywords and identifiers
             if (char.IsLetter(currentChar))
             {
                 int start = currentIndex;
@@ -28,18 +28,17 @@ public class Tokenizer
                 }
                 string token = input.Substring(start, currentIndex - start);
 
-                // Explicitly check for boolean literals
                 if (token is "true" or "false")
                 {
-                    tokens.Add(token); // Add as boolean literal
+                    tokens.Add(token);
                 }
                 else if (token is "if" or "else" or "fun" or "let")
                 {
-                    tokens.Add(token); // Add as keyword
+                    tokens.Add(token);
                 }
                 else
                 {
-                    tokens.Add(token); // Treat as identifier
+                    tokens.Add(token);
                 }
             }
             // Handle strings
@@ -68,7 +67,7 @@ public class Tokenizer
                 }
                 tokens.Add(input.Substring(start, currentIndex - start));
             }
-            // Handle multi-character operators (e.g., '->', '==')
+            // Handle multi-character operators
             else if (currentChar == '-' && currentIndex + 1 < input.Length && input[currentIndex + 1] == '>')
             {
                 tokens.Add("->");
@@ -77,6 +76,11 @@ public class Tokenizer
             else if (currentChar == '=' && currentIndex + 1 < input.Length && input[currentIndex + 1] == '=')
             {
                 tokens.Add("==");
+                currentIndex += 2;
+            }
+            else if (currentChar == '!' && currentIndex + 1 < input.Length && input[currentIndex + 1] == '=')
+            {
+                tokens.Add("!=");
                 currentIndex += 2;
             }
             // Handle single-character symbols

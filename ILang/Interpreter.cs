@@ -55,6 +55,9 @@ public class Interpreter
                 case "==":
                     ProcessEquals();
                     break;
+                case "!=":
+                    ProcessNotEquals();
+                    break;
                 case "call":
                     ProcessCall(operation.Argument);
                     break;
@@ -207,6 +210,26 @@ public class Interpreter
         {
             // General equality
             _stack.Push(left.Equals(right));
+        }
+    }
+
+    private void ProcessNotEquals()
+    {
+        if (_stack.Count < 2)
+            throw new InvalidOperationException("Stack underflow during '!=' operation.");
+
+        object right = _stack.Pop();
+        object left = _stack.Pop();
+
+        if (left is double l && right is double r)
+        {
+            // Numeric inequality
+            _stack.Push(Math.Abs(l - r) >= 1e-9);
+        }
+        else
+        {
+            // General inequality
+            _stack.Push(!left.Equals(right));
         }
     }
 
