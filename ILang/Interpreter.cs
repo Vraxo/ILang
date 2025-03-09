@@ -58,6 +58,9 @@ public class Interpreter
                 case "!=":
                     ProcessNotEquals();
                     break;
+                case "!":
+                    ProcessNot();
+                    break;
                 case "call":
                     ProcessCall(operation.Argument);
                     break;
@@ -230,6 +233,22 @@ public class Interpreter
         {
             // General inequality
             _stack.Push(!left.Equals(right));
+        }
+    }
+
+    private void ProcessNot()
+    {
+        if (_stack.Count == 0)
+            throw new InvalidOperationException("Stack underflow during '!' operation.");
+
+        object value = _stack.Pop();
+        if (value is bool b)
+        {
+            _stack.Push(!b);
+        }
+        else
+        {
+            throw new InvalidOperationException("'!' operator requires a boolean operand.");
         }
     }
 

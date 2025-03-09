@@ -186,10 +186,11 @@ public class Parser
     }
 
     private bool IsOperator(string token) =>
-        token is "+" or "-" or "*" or "/" or "==" or "!=";
+        token is "+" or "-" or "*" or "/" or "==" or "!=" or "!";
 
     private int GetPrec(string op) => op switch
     {
+        "!" => 4,    // Highest precedence (unary operator)
         "*" or "/" => 2,
         "+" or "-" => 1,
         "==" or "!=" => 0,
