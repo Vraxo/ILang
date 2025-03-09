@@ -67,6 +67,9 @@ public class Interpreter
                 case "if":
                     ProcessIf(operation);
                     break;
+                case "loop":
+                    ProcessLoop(operation);
+                    break;
                 default:
                     throw new InvalidOperationException($"Error: Unknown command '{operation.Command}'.");
             }
@@ -302,6 +305,23 @@ public class Interpreter
         else
         {
             ProcessOperations(operation.ElseOperations);
+        }
+    }
+
+    private void ProcessLoop(Operation loop)
+    {
+        while (true)
+        {
+            // Evaluate condition
+            ProcessOperations(loop.NestedOperations);
+            if (_stack.Count == 0)
+                throw new InvalidOperationException("No condition for loop.");
+
+            bool condition = (bool)_stack.Pop();
+            if (!condition) break;
+
+            // Execute loop body
+            ProcessOperations(loop.ElseOperations);
         }
     }
 }

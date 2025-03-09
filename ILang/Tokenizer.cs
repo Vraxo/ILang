@@ -30,15 +30,15 @@ public class Tokenizer
 
                 if (token is "true" or "false")
                 {
-                    tokens.Add(token);
+                    tokens.Add(token); // Add as boolean literal
                 }
-                else if (token is "if" or "else" or "fun" or "let")
+                else if (token is "if" or "else" or "fun" or "let" or "while")
                 {
-                    tokens.Add(token);
+                    tokens.Add(token); // Add as keyword
                 }
                 else
                 {
-                    tokens.Add(token);
+                    tokens.Add(token); // Treat as identifier
                 }
             }
             // Handle strings
@@ -67,7 +67,7 @@ public class Tokenizer
                 }
                 tokens.Add(input.Substring(start, currentIndex - start));
             }
-            // Handle multi-character operators
+            // Handle multi-character operators (e.g., '->', '==', '!=')
             else if (currentChar == '-' && currentIndex + 1 < input.Length && input[currentIndex + 1] == '>')
             {
                 tokens.Add("->");

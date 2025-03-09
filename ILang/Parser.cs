@@ -19,7 +19,7 @@ public class Parser
             }
             else
             {
-                pos++;
+                pos++; // Always advance position
             }
         }
 
@@ -71,6 +71,9 @@ public class Parser
                 case "if":
                     ops.AddRange(ParseIfStatement(tokens, ref pos));
                     break;
+                case "while":
+                    ops.AddRange(ParseWhileStatement(tokens, ref pos));
+                    break;
                 case "print":
                     ops.AddRange(ParseCall("print", tokens, ref pos));
                     break;
@@ -78,22 +81,22 @@ public class Parser
                     if (char.IsLetter(tokens[pos][0]))
                         ops.AddRange(ParseCall(tokens[pos++], tokens, ref pos));
                     else
-                        pos++;
+                        pos++; // Prevent infinite loop
                     break;
             }
         }
-        pos++;
+        pos++; // Skip closing '}'
         return ops;
     }
 
     private List<Operation> ParseLet(List<string> tokens, ref int pos)
     {
-        pos++;
+        pos++; // Skip 'let'
         string varName = tokens[pos++];
         _currentFunc!.Variables.Add(varName);
 
         Expect(tokens, ref pos, ":");
-        pos++;
+        pos++; // Skip type
         Expect(tokens, ref pos, "=");
 
         var ops = ParseExpr(tokens, ref pos);
@@ -104,9 +107,9 @@ public class Parser
 
     private List<Operation> ParseIfStatement(List<string> tokens, ref int pos)
     {
-        pos++;
+        pos++; // Skip 'if'
         Expect(tokens, ref pos, "(");
-        var conditionOps = ParseExpr(tokens, ref pos);
+        var condition = ParseExpr(tokens, ref pos);
         Expect(tokens, ref pos, ")");
         Expect(tokens, ref pos, "{");
         var ifOperations = ParseBlock(tokens, ref pos);
@@ -120,7 +123,7 @@ public class Parser
         }
 
         var result = new List<Operation>();
-        result.AddRange(conditionOps);
+        result.AddRange(condition);
         result.Add(new Operation
         {
             Command = "if",
@@ -130,9 +133,30 @@ public class Parser
         return result;
     }
 
+    private List<Operation> ParseWhileStatement(List<string> tokens, ref int pos)
+    {
+        pos++; // Skip 'while'
+        Expect(tokens, ref pos, "(");
+        var condition = ParseExpr(tokens, ref pos);
+        Expect(tokens, ref pos, ")");
+        Expect(tokens, ref pos, "{");
+        var body = ParseBlock(tokens, ref pos);
+
+        // Create a loop operation with condition and body
+        return new List<Operation>
+        {
+            new Operation
+            {
+                Command = "loop",
+                NestedOperations = condition,
+                ElseOperations = body
+            }
+        };
+    }
+
     private List<Operation> ParseCall(string name, List<string> tokens, ref int pos)
     {
-        pos++;
+        pos++; // Skip '('
         var ops = ParseExpr(tokens, ref pos);
         Expect(tokens, ref pos, ")");
         if (pos < tokens.Count && tokens[pos] == ";") pos++;
