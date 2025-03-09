@@ -58,9 +58,6 @@ public class Interpreter
                 case "!=":
                     ProcessNotEquals();
                     break;
-                case "unary!":
-                    ProcessUnaryNot();
-                    break;
                 case "call":
                     ProcessCall(operation.Argument);
                     break;
@@ -233,22 +230,6 @@ public class Interpreter
         {
             // General inequality
             _stack.Push(!left.Equals(right));
-        }
-    }
-
-    private void ProcessUnaryNot()
-    {
-        if (_stack.Count < 1)
-            throw new InvalidOperationException("Stack underflow during '!' operation.");
-
-        object operand = _stack.Pop();
-        if (operand is bool b)
-        {
-            _stack.Push(!b);
-        }
-        else
-        {
-            throw new InvalidOperationException("Cannot apply '!' to non-boolean value.");
         }
     }
 
