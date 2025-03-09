@@ -19,7 +19,7 @@ public class Parser
             }
             else
             {
-                pos++;
+                pos++; // Always advance position
             }
         }
 
@@ -54,7 +54,7 @@ public class Parser
             parameters.Add(param);
             if (tokens[pos] == ",") pos++;
         }
-        pos++;
+        pos++; // Skip closing ')'
         return parameters;
     }
 
@@ -78,22 +78,22 @@ public class Parser
                     if (char.IsLetter(tokens[pos][0]))
                         ops.AddRange(ParseCall(tokens[pos++], tokens, ref pos));
                     else
-                        pos++;
+                        pos++; // Prevent infinite loop
                     break;
             }
         }
-        pos++;
+        pos++; // Skip closing '}'
         return ops;
     }
 
     private List<Operation> ParseLet(List<string> tokens, ref int pos)
     {
-        pos++;
+        pos++; // Skip 'let'
         string varName = tokens[pos++];
         _currentFunc!.Variables.Add(varName);
 
         Expect(tokens, ref pos, ":");
-        pos++;
+        pos++; // Skip type
         Expect(tokens, ref pos, "=");
 
         var ops = ParseExpr(tokens, ref pos);
@@ -104,9 +104,12 @@ public class Parser
 
     private List<Operation> ParseIfStatement(List<string> tokens, ref int pos)
     {
-        pos++;
+        pos++; // Skip 'if'
         Expect(tokens, ref pos, "(");
+
+        // Parse condition FIRST
         var conditionOps = ParseExpr(tokens, ref pos);
+
         Expect(tokens, ref pos, ")");
         Expect(tokens, ref pos, "{");
         var ifOperations = ParseBlock(tokens, ref pos);
@@ -119,6 +122,7 @@ public class Parser
             elseOperations = ParseBlock(tokens, ref pos);
         }
 
+        // Combine condition and if operation
         var result = new List<Operation>();
         result.AddRange(conditionOps);
         result.Add(new Operation
@@ -127,12 +131,13 @@ public class Parser
             NestedOperations = ifOperations,
             ElseOperations = elseOperations
         });
+
         return result;
     }
 
     private List<Operation> ParseCall(string name, List<string> tokens, ref int pos)
     {
-        pos++;
+        pos++; // Skip '('
         var ops = ParseExpr(tokens, ref pos);
         Expect(tokens, ref pos, ")");
         if (pos < tokens.Count && tokens[pos] == ";") pos++;
@@ -144,55 +149,68 @@ public class Parser
     {
         var output = new List<Operation>();
         var stack = new Stack<string>();
+        bool expectUnary = true; // Track if the next operator can be unary
 
         while (pos < tokens.Count && !"});".Contains(tokens[pos]))
         {
-            if (tokens[pos] == "(")
+            string token = tokens[pos];
+            if (token == "(")
             {
-                stack.Push(tokens[pos++]);
+                stack.Push(token);
+                pos++;
+                expectUnary = true;
             }
-            else if (tokens[pos] == ")")
+            else if (token == ")")
             {
                 while (stack.Peek() != "(")
                     output.Add(new Operation { Command = stack.Pop() });
                 stack.Pop();
                 pos++;
+                expectUnary = false;
             }
-            else if (IsOperator(tokens[pos]))
+            else if (IsOperator(token))
             {
-                while (stack.Count > 0 && GetPrec(stack.Peek()) >= GetPrec(tokens[pos]))
-                    output.Add(new Operation { Command = stack.Pop() });
-                stack.Push(tokens[pos++]);
+                // Handle unary operators (e.g., "!condition")
+                if (expectUnary && token == "!")
+                {
+                    stack.Push("unary!");
+                }
+                else
+                {
+                    while (stack.Count > 0 && GetPrec(stack.Peek()) >= GetPrec(token))
+                        output.Add(new Operation { Command = stack.Pop() });
+                    stack.Push(token);
+                }
+                pos++;
+                expectUnary = true;
             }
             else
             {
                 output.Add(new Operation
                 {
-                    Command = IsIdentifier(tokens[pos]) ? "load_var" : "push",
-                    Argument = tokens[pos]
+                    Command = IsIdentifier(token) ? "load_var" : "push",
+                    Argument = token
                 });
                 pos++;
+                expectUnary = false;
             }
         }
 
         while (stack.Count > 0)
-        {
-            string op = stack.Pop();
-            if (op != "(" && op != ")")
-                output.Add(new Operation { Command = op });
-        }
+            output.Add(new Operation { Command = stack.Pop() });
 
         return output;
     }
 
     private bool IsOperator(string token) =>
-        token is "+" or "-" or "*" or "/" or "==" or "!=";
+        token is "+" or "-" or "*" or "/" or "==" or "!=" or "!";
 
     private int GetPrec(string op) => op switch
     {
-        "*" or "/" => 2,
-        "+" or "-" => 1,
-        "==" or "!=" => 0,
+        "unary!" => 5, // Highest precedence for unary NOT
+        "*" or "/" => 3,
+        "+" or "-" => 2,
+        "==" or "!=" => 1,
         _ => 0
     };
 
