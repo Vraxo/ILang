@@ -209,11 +209,8 @@ public class Parser
         return output;
     }
 
-    private bool IsOperator(string token)
-    {
-        return token == "+" || token == "-" || token == "*" || token == "/" ||
-               token == "==" || token == "!=" || token == "!" || token == "<" || token == ">";
-    }
+    private bool IsOperator(string token) =>
+        token is "+" or "-" or "*" or "/" or "==" or "!=" or "!";
 
     private int GetPrec(string op) => op switch
     {
