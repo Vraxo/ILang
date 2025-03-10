@@ -61,6 +61,12 @@ public class Interpreter
                 case "!":
                     ProcessNot();
                     break;
+                case "<":
+                    ProcessLessThan();
+                    break;
+                case ">":
+                    ProcessGreaterThan();
+                    break;
                 case "call":
                     ProcessCall(operation.Argument);
                     break;
@@ -252,6 +258,42 @@ public class Interpreter
         else
         {
             throw new InvalidOperationException("'!' operator requires a boolean operand.");
+        }
+    }
+
+    private void ProcessLessThan()
+    {
+        if (_stack.Count < 2)
+            throw new InvalidOperationException("Stack underflow during '<' operation.");
+
+        object right = _stack.Pop();
+        object left = _stack.Pop();
+
+        if (left is double l && right is double r)
+        {
+            _stack.Push(l < r);
+        }
+        else
+        {
+            throw new InvalidOperationException("Cannot compare non-numeric values with '<'.");
+        }
+    }
+
+    private void ProcessGreaterThan()
+    {
+        if (_stack.Count < 2)
+            throw new InvalidOperationException("Stack underflow during '>' operation.");
+
+        object right = _stack.Pop();
+        object left = _stack.Pop();
+
+        if (left is double l && right is double r)
+        {
+            _stack.Push(l > r);
+        }
+        else
+        {
+            throw new InvalidOperationException("Cannot compare non-numeric values with '>'.");
         }
     }
 
