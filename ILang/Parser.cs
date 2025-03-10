@@ -54,7 +54,7 @@ public class Parser
             parameters.Add(param);
             if (tokens[pos] == ",") pos++;
         }
-        pos++; // Skip closing ')'
+        pos++;
         return parameters;
     }
 
@@ -74,14 +74,8 @@ public class Parser
                 case "while":
                     ops.AddRange(ParseWhileStatement(tokens, ref pos));
                     break;
-                case "for":
-                    ops.AddRange(ParseForStatement(tokens, ref pos));
-                    break;
                 case "print":
                     ops.AddRange(ParseCall("print", tokens, ref pos));
-                    break;
-                case "num_to_string":
-                    ops.AddRange(ParseCall("num_to_string", tokens, ref pos));
                     break;
                 default:
                     if (char.IsLetter(tokens[pos][0]))
@@ -93,51 +87,6 @@ public class Parser
         }
         pos++; // Skip closing '}'
         return ops;
-    }
-
-    private List<Operation> ParseForStatement(List<string> tokens, ref int pos)
-    {
-        pos++; // Skip 'for'
-        Expect(tokens, ref pos, "(");
-
-        // Parse initialization (must be a let statement)
-        List<Operation> initOps = new List<Operation>();
-        if (tokens[pos] == "let")
-        {
-            initOps.AddRange(ParseLet(tokens, ref pos));
-        }
-        else
-        {
-            throw new Exception("For loop initialization must be a 'let' statement.");
-        }
-
-        // Parse condition
-        var conditionOps = ParseExpr(tokens, ref pos);
-        Expect(tokens, ref pos, ";");
-
-        // Parse increment
-        var incrementOps = ParseExpr(tokens, ref pos);
-        Expect(tokens, ref pos, ")");
-        Expect(tokens, ref pos, "{");
-        var bodyOps = ParseBlock(tokens, ref pos);
-
-        // Combine body and increment operations
-        var combinedBody = new List<Operation>(bodyOps);
-        combinedBody.AddRange(incrementOps);
-
-        // Create loop operation for the while loop
-        var loopOperation = new Operation
-        {
-            Command = "loop",
-            NestedOperations = conditionOps,
-            ElseOperations = combinedBody
-        };
-
-        // Combine initialization and loop operations
-        var result = new List<Operation>(initOps);
-        result.Add(loopOperation);
-
-        return result;
     }
 
     private List<Operation> ParseLet(List<string> tokens, ref int pos)
@@ -193,6 +142,7 @@ public class Parser
         Expect(tokens, ref pos, "{");
         var body = ParseBlock(tokens, ref pos);
 
+        // Create a loop operation with condition and body
         return new List<Operation>
         {
             new Operation
@@ -240,26 +190,12 @@ public class Parser
             }
             else
             {
-                if (pos + 1 < tokens.Count && tokens[pos + 1] == "=")
+                output.Add(new Operation
                 {
-                    // Handle assignment
-                    string varName = tokens[pos];
-                    pos += 2; // Skip variable and '='
-
-                    var rhsOps = ParseExpr(tokens, ref pos);
-                    rhsOps.Add(new Operation { Command = "store_var", Argument = varName });
-
-                    output.AddRange(rhsOps);
-                }
-                else
-                {
-                    output.Add(new Operation
-                    {
-                        Command = IsIdentifier(tokens[pos]) ? "load_var" : "push",
-                        Argument = tokens[pos]
-                    });
-                    pos++;
-                }
+                    Command = IsIdentifier(tokens[pos]) ? "load_var" : "push",
+                    Argument = tokens[pos]
+                });
+                pos++;
             }
         }
 
@@ -274,15 +210,14 @@ public class Parser
     }
 
     private bool IsOperator(string token) =>
-        token is "+" or "-" or "*" or "/" or "==" or "!=" or "!" or "<" or ">" or "=";
+        token is "+" or "-" or "*" or "/" or "==" or "!=" or "!";
 
     private int GetPrec(string op) => op switch
     {
         "!" => 4,    // Highest precedence (unary operator)
         "*" or "/" => 2,
         "+" or "-" => 1,
-        "==" or "!=" or "<" or ">" => 0,
-        "=" => -1, // Assignment has the lowest precedence
+        "==" or "!=" => 0,
         _ => 0
     };
 

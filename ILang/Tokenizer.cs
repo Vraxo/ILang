@@ -32,7 +32,7 @@ public class Tokenizer
                 {
                     tokens.Add(token); // Add as boolean literal
                 }
-                else if (token is "if" or "else" or "fun" or "let" or "while" or "num_to_string")
+                else if (token is "if" or "else" or "fun" or "let" or "while")
                 {
                     tokens.Add(token); // Add as keyword
                 }
@@ -82,12 +82,6 @@ public class Tokenizer
             {
                 tokens.Add("!=");
                 currentIndex += 2;
-            }
-            // Handle single-character comparison operators (e.g., '<', '>')
-            else if (currentChar == '<' || currentChar == '>')
-            {
-                tokens.Add(currentChar.ToString());
-                currentIndex++;
             }
             // Handle single-character symbols
             else
