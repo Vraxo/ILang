@@ -82,6 +82,9 @@ public class Interpreter
                 case "loop":
                     ProcessLoop(operation);
                     break;
+                case "return":
+                    ProcessReturn();
+                    break;
                 default:
                     throw new InvalidOperationException($"Error: Unknown command '{operation.Command}'.");
             }
@@ -416,5 +419,18 @@ public class Interpreter
             // Execute loop body
             ProcessOperations(loop.ElseOperations);
         }
+    }
+
+    private void ProcessReturn()
+    {
+        if (_stack.Count == 0)
+            throw new InvalidOperationException("Nothing to return.");
+
+        // Pop the return value from the stack
+        object returnValue = _stack.Pop();
+
+        // Propagate the return value to the caller (if needed)
+        // For simplicity, we'll assume the function returns to the main context
+        _stack.Push(returnValue);
     }
 }

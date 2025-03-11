@@ -77,6 +77,9 @@ public class Parser
                 case "while":
                     ops.AddRange(ParseWhileStatement(tokens, ref pos)); // While loop
                     break;
+                case "return": // Handle return statements
+                    ops.AddRange(ParseReturn(tokens, ref pos));
+                    break;
                 default:
                     if (pos + 1 < tokens.Count && tokens[pos + 1] == "=")
                     {
@@ -127,6 +130,15 @@ public class Parser
 
         Expect(tokens, ref pos, ";"); // Ensure semicolon exists
         return ops;
+    }
+
+    private List<Operation> ParseReturn(List<string> tokens, ref int pos)
+    {
+        pos++; // Skip "return"
+        var returnOps = ParseExpr(tokens, ref pos); // Parse return value
+        Expect(tokens, ref pos, ";"); // Ensure semicolon exists
+        returnOps.Add(new Operation { Command = "return" });
+        return returnOps;
     }
 
     private List<Operation> ParseIfStatement(List<string> tokens, ref int pos)
@@ -214,7 +226,7 @@ public class Parser
                 }
                 pos++; // Skip ')'
 
-                // Add arguments and call operation
+                // Add arguments and function call operation
                 foreach (var arg in args)
                 {
                     output.AddRange(arg);
