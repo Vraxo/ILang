@@ -32,7 +32,8 @@ public class Tokenizer
                 {
                     tokens.Add(token); // Add as boolean literal
                 }
-                else if (token is "if" or "else" or "fun" or "let" or "while")
+                // In Tokenizer.cs, Tokenize() method:
+                else if (token is "if" or "else" or "fun" or "let" or "while") // Remove "num_to_string" from here
                 {
                     tokens.Add(token); // Add as keyword
                 }

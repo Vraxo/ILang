@@ -260,10 +260,15 @@ public class Interpreter
         switch (functionName.ToLower())
         {
             case "print":
-                if (_stack.Count == 0)
-                    throw new InvalidOperationException("Error: Stack underflow during 'print' call.");
                 Console.WriteLine(_stack.Pop());
                 break;
+            case "num_to_string":
+                if (_stack.Count == 0)
+                    throw new InvalidOperationException("Stack underflow for num_to_string.");
+                object num = _stack.Pop();
+                _stack.Push(num.ToString());
+                break;
+
             default:
                 // Handle user-defined functions
                 Function userFunction = _program.Functions

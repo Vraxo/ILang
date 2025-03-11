@@ -188,6 +188,30 @@ public class Parser
                     output.Add(new Operation { Command = stack.Pop() });
                 stack.Push(tokens[pos++]);
             }
+            // Handle function calls (e.g., num_to_string(...))
+            else if (pos + 1 < tokens.Count && tokens[pos + 1] == "(")
+            {
+                string funcName = tokens[pos];
+                pos += 2; // Skip function name and '('
+
+                // Parse arguments
+                var args = new List<List<Operation>>();
+                while (pos < tokens.Count && tokens[pos] != ")")
+                {
+                    var argOps = ParseExpr(tokens, ref pos);
+                    args.Add(argOps);
+                    if (pos < tokens.Count && tokens[pos] == ",")
+                        pos++;
+                }
+                pos++; // Skip ')'
+
+                // Add arguments to output
+                foreach (var arg in args)
+                {
+                    output.AddRange(arg);
+                }
+                output.Add(new Operation { Command = "call", Argument = funcName });
+            }
             else
             {
                 output.Add(new Operation
