@@ -61,6 +61,18 @@ public class Interpreter
                 case "!":
                     ProcessNot();
                     break;
+                case "<":
+                    ProcessLessThan();
+                    break;
+                case ">":
+                    ProcessGreaterThan();
+                    break;
+                case "<=":
+                    ProcessLessOrEqual();
+                    break;
+                case ">=":
+                    ProcessGreaterOrEqual();
+                    break;
                 case "call":
                     ProcessCall(operation.Argument);
                     break;
@@ -255,20 +267,96 @@ public class Interpreter
         }
     }
 
+    private void ProcessLessThan()
+    {
+        if (_stack.Count < 2)
+            throw new InvalidOperationException("Stack underflow during '<' operation.");
+
+        object right = _stack.Pop();
+        object left = _stack.Pop();
+
+        if (left is double l && right is double r)
+        {
+            _stack.Push(l < r);
+        }
+        else
+        {
+            throw new InvalidOperationException("Cannot compare non-numeric values with '<'.");
+        }
+    }
+
+    private void ProcessGreaterThan()
+    {
+        if (_stack.Count < 2)
+            throw new InvalidOperationException("Stack underflow during '>' operation.");
+
+        object right = _stack.Pop();
+        object left = _stack.Pop();
+
+        if (left is double l && right is double r)
+        {
+            _stack.Push(l > r);
+        }
+        else
+        {
+            throw new InvalidOperationException("Cannot compare non-numeric values with '>'.");
+        }
+    }
+
+    private void ProcessLessOrEqual()
+    {
+        if (_stack.Count < 2)
+            throw new InvalidOperationException("Stack underflow during '<=' operation.");
+
+        object right = _stack.Pop();
+        object left = _stack.Pop();
+
+        if (left is double l && right is double r)
+        {
+            _stack.Push(l <= r);
+        }
+        else
+        {
+            throw new InvalidOperationException("Cannot compare non-numeric values with '<='.");
+        }
+    }
+
+    private void ProcessGreaterOrEqual()
+    {
+        if (_stack.Count < 2)
+            throw new InvalidOperationException("Stack underflow during '>=' operation.");
+
+        object right = _stack.Pop();
+        object left = _stack.Pop();
+
+        if (left is double l && right is double r)
+        {
+            _stack.Push(l >= r);
+        }
+        else
+        {
+            throw new InvalidOperationException("Cannot compare non-numeric values with '>='.");
+        }
+    }
+
     private void ProcessCall(string functionName)
     {
         switch (functionName.ToLower())
         {
             case "print":
+                if (_stack.Count == 0)
+                    throw new InvalidOperationException("Error: Stack underflow during 'print' call.");
                 Console.WriteLine(_stack.Pop());
                 break;
             case "num_to_string":
                 if (_stack.Count == 0)
-                    throw new InvalidOperationException("Stack underflow for num_to_string.");
+                    throw new InvalidOperationException("Error: Stack underflow during 'num_to_string' call.");
                 object num = _stack.Pop();
-                _stack.Push(num.ToString());
+                if (num is double d)
+                    _stack.Push(d.ToString());
+                else
+                    throw new InvalidOperationException("Error: 'num_to_string' requires a numeric argument.");
                 break;
-
             default:
                 // Handle user-defined functions
                 Function userFunction = _program.Functions
