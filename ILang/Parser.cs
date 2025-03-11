@@ -2,7 +2,7 @@
 
 public class Parser
 {
-    private Function? _currentFunc;
+    private Function? _currentFunc; // Tracks the current function being parsed
 
     public ParsedProgram Parse(List<string> tokens)
     {
@@ -13,13 +13,13 @@ public class Parser
         {
             if (tokens[pos] == "fun")
             {
-                pos++;
+                pos++; // Skip 'fun'
                 var func = ParseFunction(tokens, ref pos);
                 program.Functions.Add(func);
             }
             else
             {
-                pos++; // Always advance position
+                pos++; // Skip unrecognized tokens
             }
         }
 
@@ -28,18 +28,20 @@ public class Parser
 
     private Function ParseFunction(List<string> tokens, ref int pos)
     {
-        _currentFunc = new Function { Name = tokens[pos++] };
+        _currentFunc = new Function { Name = tokens[pos++] }; // Set function name
 
+        // Parse parameters
         Expect(tokens, ref pos, "(");
         _currentFunc.Parameters = ParseParams(tokens, ref pos);
         Expect(tokens, ref pos, "->");
         _currentFunc.ReturnType = ParseType(tokens[pos++]);
 
+        // Parse function body
         Expect(tokens, ref pos, "{");
         _currentFunc.Operations = ParseBlock(tokens, ref pos);
 
         var parsedFunc = _currentFunc;
-        _currentFunc = null;
+        _currentFunc = null; // Reset current function
         return parsedFunc;
     }
 
@@ -48,13 +50,14 @@ public class Parser
         var parameters = new List<ValueObject>();
         while (tokens[pos] != ")")
         {
-            var param = new ValueObject { Name = tokens[pos++] };
+            var param = new ValueObject { Name = tokens[pos++] }; // Parameter name
             Expect(tokens, ref pos, ":");
-            param.Type = ParseType(tokens[pos++]);
+            param.Type = ParseType(tokens[pos++]); // Parameter type
             parameters.Add(param);
-            if (tokens[pos] == ",") pos++;
+
+            if (tokens[pos] == ",") pos++; // Skip comma
         }
-        pos++;
+        pos++; // Skip closing ')'
         return parameters;
     }
 
@@ -66,22 +69,25 @@ public class Parser
             switch (tokens[pos])
             {
                 case "let":
-                    ops.AddRange(ParseLet(tokens, ref pos));
+                    ops.AddRange(ParseLet(tokens, ref pos)); // Variable declaration
                     break;
                 case "if":
-                    ops.AddRange(ParseIfStatement(tokens, ref pos));
+                    ops.AddRange(ParseIfStatement(tokens, ref pos)); // If statement
                     break;
                 case "while":
-                    ops.AddRange(ParseWhileStatement(tokens, ref pos));
+                    ops.AddRange(ParseWhileStatement(tokens, ref pos)); // While loop
                     break;
                 case "print":
-                    ops.AddRange(ParseCall("print", tokens, ref pos));
+                    ops.AddRange(ParseCall("print", tokens, ref pos)); // Built-in print
+                    break;
+                case "num_to_string":
+                    ops.AddRange(ParseCall("num_to_string", tokens, ref pos)); // Built-in num_to_string
                     break;
                 default:
                     if (char.IsLetter(tokens[pos][0]))
-                        ops.AddRange(ParseCall(tokens[pos++], tokens, ref pos));
+                        ops.AddRange(ParseCall(tokens[pos++], tokens, ref pos)); // Function call
                     else
-                        pos++; // Prevent infinite loop
+                        pos++; // Skip unrecognized tokens
                     break;
             }
         }
@@ -92,15 +98,15 @@ public class Parser
     private List<Operation> ParseLet(List<string> tokens, ref int pos)
     {
         pos++; // Skip 'let'
-        string varName = tokens[pos++];
-        _currentFunc!.Variables.Add(varName);
+        string varName = tokens[pos++]; // Variable name
+        _currentFunc!.Variables.Add(varName); // Track variable
 
         Expect(tokens, ref pos, ":");
         pos++; // Skip type
         Expect(tokens, ref pos, "=");
 
-        var ops = ParseExpr(tokens, ref pos);
-        ops.Add(new Operation { Command = "store_var", Argument = varName });
+        var ops = ParseExpr(tokens, ref pos); // Parse expression
+        ops.Add(new Operation { Command = "store_var", Argument = varName }); // Store variable
         Expect(tokens, ref pos, ";");
         return ops;
     }
@@ -109,12 +115,13 @@ public class Parser
     {
         pos++; // Skip 'if'
         Expect(tokens, ref pos, "(");
-        var condition = ParseExpr(tokens, ref pos);
+        var condition = ParseExpr(tokens, ref pos); // Parse condition
         Expect(tokens, ref pos, ")");
         Expect(tokens, ref pos, "{");
-        var ifOperations = ParseBlock(tokens, ref pos);
+        var ifOperations = ParseBlock(tokens, ref pos); // Parse if block
         var elseOperations = new List<Operation>();
 
+        // Parse else block (if present)
         if (pos < tokens.Count && tokens[pos] == "else")
         {
             pos++;
@@ -122,6 +129,7 @@ public class Parser
             elseOperations = ParseBlock(tokens, ref pos);
         }
 
+        // Combine condition and blocks into an if operation
         var result = new List<Operation>();
         result.AddRange(condition);
         result.Add(new Operation
@@ -137,10 +145,10 @@ public class Parser
     {
         pos++; // Skip 'while'
         Expect(tokens, ref pos, "(");
-        var condition = ParseExpr(tokens, ref pos);
+        var condition = ParseExpr(tokens, ref pos); // Parse condition
         Expect(tokens, ref pos, ")");
         Expect(tokens, ref pos, "{");
-        var body = ParseBlock(tokens, ref pos);
+        var body = ParseBlock(tokens, ref pos); // Parse loop body
 
         // Create a loop operation with condition and body
         return new List<Operation>
@@ -157,10 +165,10 @@ public class Parser
     private List<Operation> ParseCall(string name, List<string> tokens, ref int pos)
     {
         pos++; // Skip '('
-        var ops = ParseExpr(tokens, ref pos);
+        var ops = ParseExpr(tokens, ref pos); // Parse arguments
         Expect(tokens, ref pos, ")");
-        if (pos < tokens.Count && tokens[pos] == ";") pos++;
-        ops.Add(new Operation { Command = "call", Argument = name });
+        if (pos < tokens.Count && tokens[pos] == ";") pos++; // Skip semicolon (if present)
+        ops.Add(new Operation { Command = "call", Argument = name }); // Add call operation
         return ops;
     }
 
@@ -189,7 +197,7 @@ public class Parser
                 stack.Push(tokens[pos++]);
             }
             // Handle function calls (e.g., num_to_string(...))
-            else if (pos + 1 < tokens.Count && tokens[pos + 1] == "(")
+            else if (pos + 1 < tokens.Count && tokens[pos + 1] == "(") // ← Critical fix: No IsIdentifier check
             {
                 string funcName = tokens[pos];
                 pos += 2; // Skip function name and '('
@@ -205,7 +213,7 @@ public class Parser
                 }
                 pos++; // Skip ')'
 
-                // Add arguments to output
+                // Add operations for arguments and function call
                 foreach (var arg in args)
                 {
                     output.AddRange(arg);
@@ -216,6 +224,7 @@ public class Parser
             {
                 output.Add(new Operation
                 {
+                    // Use 'push' only for literals, not identifiers
                     Command = IsIdentifier(tokens[pos]) ? "load_var" : "push",
                     Argument = tokens[pos]
                 });
@@ -234,14 +243,14 @@ public class Parser
     }
 
     private bool IsOperator(string token) =>
-        token is "+" or "-" or "*" or "/" or "==" or "!=" or "!";
+        token is "+" or "-" or "*" or "/" or "==" or "!=" or "!" or "<" or ">";
 
     private int GetPrec(string op) => op switch
     {
         "!" => 4,    // Highest precedence (unary operator)
         "*" or "/" => 2,
         "+" or "-" => 1,
-        "==" or "!=" => 0,
+        "==" or "!=" or "<" or ">" => 0,
         _ => 0
     };
 
