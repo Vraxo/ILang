@@ -77,17 +77,23 @@ public class Parser
                 case "while":
                     ops.AddRange(ParseWhileStatement(tokens, ref pos)); // While loop
                     break;
-                case "print":
-                    ops.AddRange(ParseCall("print", tokens, ref pos)); // Built-in print
-                    break;
-                case "num_to_string":
-                    ops.AddRange(ParseCall("num_to_string", tokens, ref pos)); // Built-in num_to_string
-                    break;
                 default:
-                    if (char.IsLetter(tokens[pos][0]))
+                    if (pos + 1 < tokens.Count && tokens[pos + 1] == "=")
+                    {
+                        ops.AddRange(ParseAssignment(tokens, ref pos)); // Assignment
+                    }
+                    else if (tokens[pos] == "print" || tokens[pos] == "num_to_string")
+                    {
+                        ops.AddRange(ParseCall(tokens[pos++], tokens, ref pos)); // Built-in function
+                    }
+                    else if (char.IsLetter(tokens[pos][0]))
+                    {
                         ops.AddRange(ParseCall(tokens[pos++], tokens, ref pos)); // Function call
+                    }
                     else
+                    {
                         pos++; // Skip unrecognized tokens
+                    }
                     break;
             }
         }
@@ -108,6 +114,18 @@ public class Parser
         var ops = ParseExpr(tokens, ref pos); // Parse expression
         ops.Add(new Operation { Command = "store_var", Argument = varName }); // Store variable
         Expect(tokens, ref pos, ";");
+        return ops;
+    }
+
+    private List<Operation> ParseAssignment(List<string> tokens, ref int pos)
+    {
+        string varName = tokens[pos]; // Variable name
+        pos += 2; // Skip variable name and '='
+
+        var ops = ParseExpr(tokens, ref pos); // Parse right-hand side expression
+        ops.Add(new Operation { Command = "store_var", Argument = varName }); // Store result
+
+        Expect(tokens, ref pos, ";"); // Ensure semicolon exists
         return ops;
     }
 
@@ -179,7 +197,31 @@ public class Parser
 
         while (pos < tokens.Count && !"});".Contains(tokens[pos]))
         {
-            if (tokens[pos] == "(")
+            // Handle function calls (e.g., num_to_string(...))
+            if (char.IsLetter(tokens[pos][0]) && pos + 1 < tokens.Count && tokens[pos + 1] == "(")
+            {
+                string funcName = tokens[pos];
+                pos += 2; // Skip function name and '('
+
+                // Parse arguments recursively
+                var args = new List<List<Operation>>();
+                while (pos < tokens.Count && tokens[pos] != ")")
+                {
+                    var argOps = ParseExpr(tokens, ref pos);
+                    args.Add(argOps);
+                    if (pos < tokens.Count && tokens[pos] == ",")
+                        pos++;
+                }
+                pos++; // Skip ')'
+
+                // Add arguments and call operation
+                foreach (var arg in args)
+                {
+                    output.AddRange(arg);
+                }
+                output.Add(new Operation { Command = "call", Argument = funcName });
+            }
+            else if (tokens[pos] == "(")
             {
                 stack.Push(tokens[pos++]);
             }
@@ -196,35 +238,10 @@ public class Parser
                     output.Add(new Operation { Command = stack.Pop() });
                 stack.Push(tokens[pos++]);
             }
-            // Handle function calls (e.g., num_to_string(...))
-            else if (pos + 1 < tokens.Count && tokens[pos + 1] == "(") // ← Critical fix: No IsIdentifier check
-            {
-                string funcName = tokens[pos];
-                pos += 2; // Skip function name and '('
-
-                // Parse arguments
-                var args = new List<List<Operation>>();
-                while (pos < tokens.Count && tokens[pos] != ")")
-                {
-                    var argOps = ParseExpr(tokens, ref pos);
-                    args.Add(argOps);
-                    if (pos < tokens.Count && tokens[pos] == ",")
-                        pos++;
-                }
-                pos++; // Skip ')'
-
-                // Add operations for arguments and function call
-                foreach (var arg in args)
-                {
-                    output.AddRange(arg);
-                }
-                output.Add(new Operation { Command = "call", Argument = funcName });
-            }
             else
             {
                 output.Add(new Operation
                 {
-                    // Use 'push' only for literals, not identifiers
                     Command = IsIdentifier(tokens[pos]) ? "load_var" : "push",
                     Argument = tokens[pos]
                 });
