@@ -46,45 +46,6 @@ public class Tokenizer
                 continue; // Move to the next character after the comment
             }
 
-            // Handle -> operator (MUST come before individual - and > checks)
-            if (currentChar == '-' && currentIndex + 1 < input.Length && input[currentIndex + 1] == '>')
-            {
-                tokens.Add("->");
-                currentIndex += 2;
-                continue;
-            }
-
-            // Handle strings
-            if (currentChar == '"')
-            {
-                int start = currentIndex;
-                currentIndex++;
-                while (currentIndex < input.Length && input[currentIndex] != '"')
-                {
-                    currentIndex++;
-                }
-                if (currentIndex >= input.Length)
-                {
-                    Error("Unterminated string literal.");
-                }
-                currentIndex++;
-                tokens.Add(input.Substring(start, currentIndex - start));
-                continue;
-            }
-
-            // Handle numbers
-            if (char.IsDigit(currentChar) || currentChar == '.')
-            {
-                int start = currentIndex;
-                while (currentIndex < input.Length &&
-                      (char.IsDigit(input[currentIndex]) || input[currentIndex] == '.'))
-                {
-                    currentIndex++;
-                }
-                tokens.Add(input.Substring(start, currentIndex - start));
-                continue;
-            }
-
             // Handle keywords and identifiers
             if (char.IsLetter(currentChar))
             {
@@ -101,7 +62,7 @@ public class Tokenizer
                 {
                     tokens.Add(token); // Boolean literal
                 }
-                else if (token is "extern" or "fun" or "let" or "if" or "else" or "while" or "return")
+                else if (token is "if" or "else" or "fun" or "let" or "while")
                 {
                     tokens.Add(token); // Keyword
                 }
@@ -109,26 +70,62 @@ public class Tokenizer
                 {
                     tokens.Add(token); // Identifier (e.g., num_to_string)
                 }
-                continue;
             }
-
-            // Handle multi-character operators (e.g., '==', '!=')
-            if (currentChar == '=' && currentIndex + 1 < input.Length && input[currentIndex + 1] == '=')
+            // Handle strings
+            else if (currentChar == '"')
+            {
+                int start = currentIndex;
+                currentIndex++;
+                while (currentIndex < input.Length && input[currentIndex] != '"')
+                {
+                    currentIndex++;
+                }
+                if (currentIndex >= input.Length)
+                {
+                    Error("Unterminated string literal.");
+                }
+                currentIndex++;
+                tokens.Add(input.Substring(start, currentIndex - start));
+            }
+            // Handle numbers
+            else if (char.IsDigit(currentChar) || currentChar == '.')
+            {
+                int start = currentIndex;
+                while (currentIndex < input.Length &&
+                      (char.IsDigit(input[currentIndex]) || input[currentIndex] == '.'))
+                {
+                    currentIndex++;
+                }
+                tokens.Add(input.Substring(start, currentIndex - start));
+            }
+            // Handle multi-character operators (e.g., '->', '==', '!=')
+            else if (currentChar == '-' && currentIndex + 1 < input.Length && input[currentIndex + 1] == '>')
+            {
+                tokens.Add("->");
+                currentIndex += 2;
+            }
+            else if (currentChar == '=' && currentIndex + 1 < input.Length && input[currentIndex + 1] == '=')
             {
                 tokens.Add("==");
                 currentIndex += 2;
-                continue;
             }
-            if (currentChar == '!' && currentIndex + 1 < input.Length && input[currentIndex + 1] == '=')
+            else if (currentChar == '!' && currentIndex + 1 < input.Length && input[currentIndex + 1] == '=')
             {
                 tokens.Add("!=");
                 currentIndex += 2;
-                continue;
             }
-
+            // Handle single-character comparison operators (e.g., '<', '>')
+            else if (currentChar == '<' || currentChar == '>')
+            {
+                tokens.Add(currentChar.ToString());
+                currentIndex++;
+            }
             // Handle single-character symbols
-            tokens.Add(currentChar.ToString());
-            currentIndex++;
+            else
+            {
+                tokens.Add(currentChar.ToString());
+                currentIndex++;
+            }
         }
 
         return tokens;
