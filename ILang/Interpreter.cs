@@ -1,6 +1,4 @@
-﻿using System.Runtime.InteropServices;
-
-namespace ILang;
+﻿namespace ILang;
 
 public class Interpreter
 {
@@ -346,138 +344,47 @@ public class Interpreter
 
     private void ProcessCall(string functionName)
     {
-        var function = _program.Functions.FirstOrDefault(f => f.Name == functionName);
-
-        if (function?.IsExternal == true)
+        switch (functionName.ToLower())
         {
-            // Handle external DLL call
-            CallExternalFunction(function);
-        }
-        else
-        {
-            // Handle user-defined or built-in functions
-            switch (functionName.ToLower())
-            {
-                case "print":
-                    if (_stack.Count == 0)
-                        throw new InvalidOperationException("Error: Stack underflow during 'print' call.");
-                    Console.WriteLine(_stack.Pop());
-                    break;
-                case "num_to_string":
-                    if (_stack.Count == 0)
-                        throw new InvalidOperationException("Error: Stack underflow during 'num_to_string' call.");
-                    object num = _stack.Pop();
-                    if (num is double d)
-                        _stack.Push(d.ToString());
-                    else
-                        throw new InvalidOperationException("Error: 'num_to_string' requires a numeric argument.");
-                    break;
-                default:
-                    // Handle user-defined functions
-                    if (function == null)
-                        throw new InvalidOperationException($"Error: Unknown function '{functionName}'.");
-
-                    // Capture arguments from the stack
-                    var args = new Dictionary<string, object>();
-                    for (int i = function.Parameters.Count - 1; i >= 0; i--)
-                    {
-                        if (_stack.Count == 0)
-                            throw new InvalidOperationException($"Error: Not enough arguments for '{functionName}'.");
-                        args[function.Parameters[i].Name] = _stack.Pop();
-                    }
-
-                    // Push a new frame with parameters
-                    _callStack.Push(args);
-
-                    // Execute the function's operations
-                    ProcessOperations(function.Operations);
-
-                    // Pop the frame after execution
-                    _callStack.Pop();
-                    break;
-            }
-        }
-    }
-
-    private void CallExternalFunction(Function function)
-    {
-        try
-        {
-            var handle = NativeLibrary.Load(function.DllPath);
-            Console.WriteLine($"Loaded DLL: {function.DllPath}");
-
-            // Direct attempt with exact name
-            if (NativeLibrary.TryGetExport(handle, "console_print", out var funcPtr))
-            {
-                var func = Marshal.GetDelegateForFunctionPointer<Action<string>>(funcPtr);
-                func((string)_stack.Pop());
-            }
-            else
-            {
-                // Fallback: Try decorated name
-                if (NativeLibrary.TryGetExport(handle, "_console_print@4", out funcPtr))
-                {
-                    var func = Marshal.GetDelegateForFunctionPointer<Action<string>>(funcPtr);
-                    func((string)_stack.Pop());
-                }
+            case "print":
+                if (_stack.Count == 0)
+                    throw new InvalidOperationException("Error: Stack underflow during 'print' call.");
+                Console.WriteLine(_stack.Pop());
+                break;
+            case "num_to_string":
+                if (_stack.Count == 0)
+                    throw new InvalidOperationException("Error: Stack underflow during 'num_to_string' call.");
+                object num = _stack.Pop();
+                if (num is double d)
+                    _stack.Push(d.ToString());
                 else
+                    throw new InvalidOperationException("Error: 'num_to_string' requires a numeric argument.");
+                break;
+            default:
+                // Handle user-defined functions
+                Function userFunction = _program.Functions
+                    .FirstOrDefault(f => f.Name == functionName)
+                    ?? throw new InvalidOperationException($"Error: Unknown function '{functionName}'.");
+
+                // Capture arguments from the stack
+                var args = new Dictionary<string, object>();
+                for (int i = userFunction.Parameters.Count - 1; i >= 0; i--)
                 {
-                    throw new EntryPointNotFoundException(
-                        $"Function 'console_print' not found. Verify DLL using dumpbin.");
+                    if (_stack.Count == 0)
+                        throw new InvalidOperationException($"Error: Not enough arguments for '{functionName}'.");
+                    args[userFunction.Parameters[i].Name] = _stack.Pop();
                 }
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"Error: {ex.Message}");
-            throw;
-        }
-    }
 
-    private object[] MarshalArguments(Function function)
-    {
-        var args = new List<object>();
-        foreach (var param in function.Parameters.AsEnumerable().Reverse())
-        {
-            object value = _stack.Pop();
-            args.Add(MarshalValue(value, param.Type));
-        }
-        return args.AsEnumerable().Reverse().ToArray(); // Use LINQ's Reverse()
-    }
+                // Push a new frame with parameters
+                _callStack.Push(args);
 
-    private object MarshalValue(object value, ValueObjectType type)
-    {
-        return type switch
-        {
-            ValueObjectType.String => Marshal.StringToHGlobalAnsi((string)value),
-            ValueObjectType.Number => Convert.ToDouble(value),
-            _ => value
-        };
-    }
+                // Execute the function's operations
+                ProcessOperations(userFunction.Operations);
 
-    private Type CreateDelegateType(Function function)
-    {
-        // Create a delegate type dynamically based on the function's signature
-        // Example: For `console_print(message: string) -> void`, create `Action<string>`
-        // This is a simplified example; a full implementation would handle all types.
-        if (function.ReturnType == ValueObjectType.Void)
-        {
-            return typeof(Action<>).MakeGenericType(GetNativeType(function.Parameters[0].Type));
+                // Pop the frame after execution
+                _callStack.Pop();
+                break;
         }
-        else
-        {
-            throw new NotSupportedException("Non-void external functions are not yet supported.");
-        }
-    }
-
-    private Type GetNativeType(ValueObjectType type)
-    {
-        return type switch
-        {
-            ValueObjectType.String => typeof(string),
-            ValueObjectType.Number => typeof(double),
-            _ => throw new NotSupportedException($"Unsupported type: {type}")
-        };
     }
 
     private void ProcessIf(Operation operation)
