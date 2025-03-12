@@ -3,6 +3,7 @@
 public class ParsedProgram
 {
     public List<Function> Functions { get; set; } = [];
+    public List<ExternFunction> ExternFunctions { get; set; } = [];
 
     public void SaveToYaml(string filePath)
     {

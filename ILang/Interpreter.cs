@@ -1,10 +1,13 @@
-﻿namespace ILang;
+﻿using System.Diagnostics;
+using System.Text.Json;
+
+namespace ILang;
 
 public class Interpreter
 {
     private readonly ParsedProgram _program;
-    private readonly Stack<object> _stack = new();
-    private readonly Stack<Dictionary<string, object>> _callStack = new();
+    private readonly Stack<object> _stack = new(); // Operand stack
+    private readonly Stack<Dictionary<string, object>> _callStack = new(); // Call stack for variables
 
     public Interpreter(ParsedProgram program)
     {
@@ -361,30 +364,133 @@ public class Interpreter
                     throw new InvalidOperationException("Error: 'num_to_string' requires a numeric argument.");
                 break;
             default:
-                // Handle user-defined functions
-                Function userFunction = _program.Functions
-                    .FirstOrDefault(f => f.Name == functionName)
-                    ?? throw new InvalidOperationException($"Error: Unknown function '{functionName}'.");
-
-                // Capture arguments from the stack
-                var args = new Dictionary<string, object>();
-                for (int i = userFunction.Parameters.Count - 1; i >= 0; i--)
+                // Check user-defined functions
+                Function userFunc = _program.Functions.FirstOrDefault(f => f.Name == functionName);
+                if (userFunc != null)
                 {
-                    if (_stack.Count == 0)
-                        throw new InvalidOperationException($"Error: Not enough arguments for '{functionName}'.");
-                    args[userFunction.Parameters[i].Name] = _stack.Pop();
+                    // Capture arguments from the stack
+                    var args = new Dictionary<string, object>();
+                    for (int i = userFunc.Parameters.Count - 1; i >= 0; i--)
+                    {
+                        if (_stack.Count == 0)
+                            throw new InvalidOperationException($"Error: Not enough arguments for '{functionName}'.");
+                        args[userFunc.Parameters[i].Name] = _stack.Pop();
+                    }
+
+                    // Push a new frame with parameters
+                    _callStack.Push(args);
+
+                    // Execute the function's operations
+                    ProcessOperations(userFunc.Operations);
+
+                    // Pop the frame after execution
+                    _callStack.Pop();
                 }
-
-                // Push a new frame with parameters
-                _callStack.Push(args);
-
-                // Execute the function's operations
-                ProcessOperations(userFunction.Operations);
-
-                // Pop the frame after execution
-                _callStack.Pop();
+                else
+                {
+                    // Check extern functions
+                    ExternFunction externFunc = _program.ExternFunctions
+                        .FirstOrDefault(f => f.Name == functionName);
+                    if (externFunc != null)
+                    {
+                        ProcessExternCall(externFunc);
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException($"Error: Unknown function '{functionName}'.");
+                    }
+                }
                 break;
         }
+    }
+
+    private void ProcessExternCall(ExternFunction externFunc)
+    {
+        // Collect arguments from the stack
+        var args = new List<object>();
+        for (int i = externFunc.Parameters.Count - 1; i >= 0; i--)
+        {
+            if (_stack.Count == 0)
+                throw new InvalidOperationException($"Not enough arguments for '{externFunc.Name}'.");
+            args.Add(_stack.Pop());
+        }
+        args.Reverse(); // Original order
+
+        // Serialize arguments with escaped backslashes
+        string jsonArgs = JsonSerializer.Serialize(args);
+        jsonArgs = jsonArgs.Replace("\\", "\\\\"); // Escape for Regex.Unescape
+
+        // Generate result token if needed
+        string resultToken = null;
+        if (externFunc.ReturnType != ValueObjectType.Void)
+            resultToken = Guid.NewGuid().ToString("N");
+
+        // Prepare process
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = externFunc.Path,
+            Arguments = $"{externFunc.Name} {EscapeArg(jsonArgs)} {resultToken ?? "null"}",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using var process = new Process { StartInfo = startInfo };
+        bool resultReceived = false;
+        object result = null;
+
+        process.OutputDataReceived += (sender, e) =>
+        {
+            if (e.Data != null)
+            {
+                if (resultToken != null && e.Data.StartsWith($"<{resultToken}>"))
+                {
+                    string json = e.Data.Substring(resultToken.Length + 2);
+                    result = DeserializeResult(json, externFunc.ReturnType);
+                    resultReceived = true;
+                }
+                else
+                {
+                    Console.WriteLine(e.Data);
+                }
+            }
+        };
+
+        process.Start();
+        process.BeginOutputReadLine();
+        string error = process.StandardError.ReadToEnd();
+
+        if (!process.WaitForExit(5000))
+        {
+            process.Kill();
+            throw new InvalidOperationException($"Extern function '{externFunc.Name}' timed out.");
+        }
+
+        if (process.ExitCode != 0)
+            throw new InvalidOperationException($"Extern call failed: {error}");
+
+        if (externFunc.ReturnType != ValueObjectType.Void && !resultReceived)
+            throw new InvalidOperationException($"No result from '{externFunc.Name}'.");
+
+        if (result != null)
+            _stack.Push(result);
+    }
+
+    private string EscapeArg(string arg) => $"\"{arg.Replace("\"", "\\\"")}\"";
+
+    private object DeserializeResult(string json, ValueObjectType type)
+    {
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        return type switch
+        {
+            ValueObjectType.Number => root.GetDouble(),
+            ValueObjectType.String => root.GetString(),
+            ValueObjectType.Bool => root.GetBoolean(),
+            _ => null
+        };
     }
 
     private void ProcessIf(Operation operation)

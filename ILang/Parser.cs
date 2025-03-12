@@ -3,10 +3,13 @@
 public class Parser
 {
     private Function? _currentFunc; // Tracks the current function being parsed
+    private ParsedProgram _program = new(); // The parsed program
 
     public ParsedProgram Parse(List<string> tokens)
     {
-        var program = new ParsedProgram();
+        //Console.WriteLine("Token Stream:");
+        //Console.WriteLine(string.Join(" ", tokens.Select((t, i) => $"[{i}:{t}]")));
+        
         int pos = 0;
 
         while (pos < tokens.Count)
@@ -15,7 +18,13 @@ public class Parser
             {
                 pos++; // Skip 'fun'
                 var func = ParseFunction(tokens, ref pos);
-                program.Functions.Add(func);
+                _program.Functions.Add(func);
+            }
+            else if (tokens[pos] == "extern")
+            {
+                pos++; // Skip 'extern'
+                var externFunc = ParseExternFunction(tokens, ref pos);
+                _program.ExternFunctions.Add(externFunc);
             }
             else
             {
@@ -23,7 +32,7 @@ public class Parser
             }
         }
 
-        return program;
+        return _program;
     }
 
     private Function ParseFunction(List<string> tokens, ref int pos)
@@ -43,6 +52,42 @@ public class Parser
         var parsedFunc = _currentFunc;
         _currentFunc = null; // Reset current function
         return parsedFunc;
+    }
+
+    private ExternFunction ParseExternFunction(List<string> tokens, ref int pos)
+    {
+        // Parse extern path (string literal)
+        string path = tokens[pos++].Trim('"');
+
+        // Parse function name
+        string name = tokens[pos++];
+
+        // Parse parameters
+        Expect(tokens, ref pos, "(");
+        var parameters = new List<ValueObject>();
+        while (tokens[pos] != ")")
+        {
+            string paramName = tokens[pos++];
+            Expect(tokens, ref pos, ":");
+            ValueObjectType paramType = ParseType(tokens[pos++]);
+            parameters.Add(new ValueObject { Name = paramName, Type = paramType });
+
+            if (tokens[pos] == ",") pos++;
+        }
+        pos++; // Skip ')'
+
+        // Parse return type
+        Expect(tokens, ref pos, "->");
+        ValueObjectType returnType = ParseType(tokens[pos++]);
+        Expect(tokens, ref pos, ";"); // Ensure semicolon
+
+        return new ExternFunction
+        {
+            Path = path,
+            Name = name,
+            Parameters = parameters,
+            ReturnType = returnType
+        };
     }
 
     private List<ValueObject> ParseParams(List<string> tokens, ref int pos)
@@ -77,8 +122,8 @@ public class Parser
                 case "while":
                     ops.AddRange(ParseWhileStatement(tokens, ref pos)); // While loop
                     break;
-                case "return": // Handle return statements
-                    ops.AddRange(ParseReturn(tokens, ref pos));
+                case "return":
+                    ops.AddRange(ParseReturn(tokens, ref pos)); // Return statement
                     break;
                 default:
                     if (pos + 1 < tokens.Count && tokens[pos + 1] == "=")

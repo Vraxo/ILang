@@ -62,7 +62,8 @@ public class Tokenizer
                 {
                     tokens.Add(token); // Boolean literal
                 }
-                else if (token is "if" or "else" or "fun" or "let" or "while")
+                // In Tokenizer.cs, inside the Tokenize method
+                else if (token is "if" or "else" or "fun" or "let" or "while" or "extern")
                 {
                     tokens.Add(token); // Keyword
                 }
