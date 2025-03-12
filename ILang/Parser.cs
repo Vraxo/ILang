@@ -6,15 +6,25 @@ public class Parser
 
     public ParsedProgram Parse(List<string> tokens)
     {
+        Console.WriteLine("Token Stream:");
+        Console.WriteLine(string.Join(" ", tokens.Select((t, i) => $"[{i}:{t}]")));
+
         var program = new ParsedProgram();
         int pos = 0;
 
         while (pos < tokens.Count)
         {
-            if (tokens[pos] == "fun")
+            if (tokens[pos] == "extern")
             {
+                // Handle external function declarations
+                var externalFunc = ParseExternalFunction(tokens, ref pos);
+                program.Functions.Add(externalFunc);
+            }
+            else if (tokens[pos] == "fun")
+            {
+                // Handle regular function declarations
                 pos++; // Skip 'fun'
-                var func = ParseFunction(tokens, ref pos);
+                var func = ParseRegularFunction(tokens, ref pos);
                 program.Functions.Add(func);
             }
             else
@@ -26,13 +36,38 @@ public class Parser
         return program;
     }
 
-    private Function ParseFunction(List<string> tokens, ref int pos)
+    private ExternalFunction ParseExternalFunction(List<string> tokens, ref int pos)
+    {
+        pos++; // Skip 'extern'
+        string externalPath = tokens[pos++].Trim('"');
+        string funcName = tokens[pos++];
+
+        // Explicitly consume '(' after function name
+        Expect(tokens, ref pos, "(");
+
+        var parameters = ParseParams(tokens, ref pos); // Handles parameters and ')'
+
+        Expect(tokens, ref pos, "->");
+        var returnType = ParseType(tokens[pos++]);
+        Expect(tokens, ref pos, ";");
+
+        return new ExternalFunction
+        {
+            ExternalPath = externalPath,
+            Name = funcName,
+            Parameters = parameters,
+            ReturnType = returnType
+        };
+    }
+
+    private Function ParseRegularFunction(List<string> tokens, ref int pos)
     {
         _currentFunc = new Function { Name = tokens[pos++] }; // Set function name
 
         // Parse parameters
         Expect(tokens, ref pos, "(");
         _currentFunc.Parameters = ParseParams(tokens, ref pos);
+        Expect(tokens, ref pos, ")");
         Expect(tokens, ref pos, "->");
         _currentFunc.ReturnType = ParseType(tokens[pos++]);
 
@@ -48,16 +83,22 @@ public class Parser
     private List<ValueObject> ParseParams(List<string> tokens, ref int pos)
     {
         var parameters = new List<ValueObject>();
-        while (tokens[pos] != ")")
+
+        // Process parameters until closing ')'
+        while (pos < tokens.Count && tokens[pos] != ")")
         {
-            var param = new ValueObject { Name = tokens[pos++] }; // Parameter name
+            var param = new ValueObject { Name = tokens[pos++] };
             Expect(tokens, ref pos, ":");
-            param.Type = ParseType(tokens[pos++]); // Parameter type
+            param.Type = ParseType(tokens[pos++]);
             parameters.Add(param);
 
-            if (tokens[pos] == ",") pos++; // Skip comma
+            // Handle comma separator
+            if (pos < tokens.Count && tokens[pos] == ",") pos++;
+            else if (pos < tokens.Count && tokens[pos] != ")")
+                throw new Exception($"Expected ',' or ')', got {tokens[pos]}");
         }
-        pos++; // Skip closing ')'
+
+        if (pos < tokens.Count) pos++; // Consume closing ')'
         return parameters;
     }
 
@@ -77,8 +118,8 @@ public class Parser
                 case "while":
                     ops.AddRange(ParseWhileStatement(tokens, ref pos)); // While loop
                     break;
-                case "return": // Handle return statements
-                    ops.AddRange(ParseReturn(tokens, ref pos));
+                case "return":
+                    ops.AddRange(ParseReturn(tokens, ref pos)); // Return statement
                     break;
                 default:
                     if (pos + 1 < tokens.Count && tokens[pos + 1] == "=")
@@ -295,7 +336,8 @@ public class Parser
         "num" => ValueObjectType.Number,
         "bool" => ValueObjectType.Bool,
         "string" => ValueObjectType.String,
-        _ => ValueObjectType.Void
+        "void" => ValueObjectType.Void,
+        _ => throw new Exception($"Unknown type: {type}")
     };
 
     private void Expect(List<string> tokens, ref int pos, string expected)

@@ -1,14 +1,20 @@
-﻿namespace ILang;
+﻿using System.Text.Json;
+
+namespace ILang;
 
 public class Interpreter
 {
     private readonly ParsedProgram _program;
     private readonly Stack<object> _stack = new();
     private readonly Stack<Dictionary<string, object>> _callStack = new();
+    private readonly Dictionary<string, ExternalFunction> _externalFunctions;
 
     public Interpreter(ParsedProgram program)
     {
         _program = program;
+        _externalFunctions = program.Functions
+            .OfType<ExternalFunction>()
+            .ToDictionary(f => f.Name);
     }
 
     public void Execute()
@@ -344,46 +350,87 @@ public class Interpreter
 
     private void ProcessCall(string functionName)
     {
-        switch (functionName.ToLower())
+        if (_externalFunctions.TryGetValue(functionName, out var externalFunc))
         {
-            case "print":
-                if (_stack.Count == 0)
-                    throw new InvalidOperationException("Error: Stack underflow during 'print' call.");
-                Console.WriteLine(_stack.Pop());
-                break;
-            case "num_to_string":
-                if (_stack.Count == 0)
-                    throw new InvalidOperationException("Error: Stack underflow during 'num_to_string' call.");
-                object num = _stack.Pop();
-                if (num is double d)
-                    _stack.Push(d.ToString());
-                else
-                    throw new InvalidOperationException("Error: 'num_to_string' requires a numeric argument.");
-                break;
-            default:
-                // Handle user-defined functions
-                Function userFunction = _program.Functions
-                    .FirstOrDefault(f => f.Name == functionName)
-                    ?? throw new InvalidOperationException($"Error: Unknown function '{functionName}'.");
-
-                // Capture arguments from the stack
-                var args = new Dictionary<string, object>();
-                for (int i = userFunction.Parameters.Count - 1; i >= 0; i--)
-                {
+            ProcessExternalCall(externalFunc);
+        }
+        else
+        {
+            // Handle built-in or user-defined functions
+            switch (functionName.ToLower())
+            {
+                case "print":
                     if (_stack.Count == 0)
-                        throw new InvalidOperationException($"Error: Not enough arguments for '{functionName}'.");
-                    args[userFunction.Parameters[i].Name] = _stack.Pop();
-                }
+                        throw new InvalidOperationException("Error: Stack underflow during 'print' call.");
+                    Console.WriteLine(_stack.Pop());
+                    break;
+                case "num_to_string":
+                    if (_stack.Count == 0)
+                        throw new InvalidOperationException("Error: Stack underflow during 'num_to_string' call.");
+                    object num = _stack.Pop();
+                    if (num is double d)
+                        _stack.Push(d.ToString());
+                    else
+                        throw new InvalidOperationException("Error: 'num_to_string' requires a numeric argument.");
+                    break;
+                default:
+                    // Handle user-defined functions
+                    Function userFunction = _program.Functions
+                        .FirstOrDefault(f => f.Name == functionName)
+                        ?? throw new InvalidOperationException($"Error: Unknown function '{functionName}'.");
 
-                // Push a new frame with parameters
-                _callStack.Push(args);
+                    // Capture arguments from the stack
+                    var args = new Dictionary<string, object>();
+                    for (int i = userFunction.Parameters.Count - 1; i >= 0; i--)
+                    {
+                        if (_stack.Count == 0)
+                            throw new InvalidOperationException($"Error: Not enough arguments for '{functionName}'.");
+                        args[userFunction.Parameters[i].Name] = _stack.Pop();
+                    }
 
-                // Execute the function's operations
-                ProcessOperations(userFunction.Operations);
+                    // Push a new frame with parameters
+                    _callStack.Push(args);
 
-                // Pop the frame after execution
-                _callStack.Pop();
-                break;
+                    // Execute the function's operations
+                    ProcessOperations(userFunction.Operations);
+
+                    // Pop the frame after execution
+                    _callStack.Pop();
+                    break;
+            }
+        }
+    }
+
+    private void ProcessExternalCall(ExternalFunction externalFunc)
+    {
+        // Capture arguments from the stack
+        var args = new List<object>();
+        for (int i = externalFunc.Parameters.Count - 1; i >= 0; i--)
+        {
+            if (_stack.Count == 0)
+                throw new InvalidOperationException($"Error: Not enough arguments for '{externalFunc.Name}'.");
+            args.Add(_stack.Pop());
+        }
+
+        // Serialize arguments to JSON
+        var argData = JsonSerializer.Serialize(args);
+
+        // Run the external executable
+        var process = new System.Diagnostics.Process();
+        process.StartInfo.FileName = externalFunc.ExternalPath;
+        process.StartInfo.Arguments = $"{externalFunc.Name} \"{argData}\"";
+        process.StartInfo.RedirectStandardOutput = true;
+        process.StartInfo.UseShellExecute = false;
+
+        process.Start();
+        string output = process.StandardOutput.ReadToEnd();
+        process.WaitForExit();
+
+        // Handle the result
+        if (externalFunc.ReturnType != ValueObjectType.Void)
+        {
+            var result = JsonSerializer.Deserialize<object>(output);
+            _stack.Push(result);
         }
     }
 
