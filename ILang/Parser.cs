@@ -11,15 +11,32 @@ public class Parser
 
         while (pos < tokens.Count)
         {
-            if (tokens[pos] == "fun")
+            if (tokens[pos] == "external")
             {
-                pos++; // Skip 'fun'
+                pos++; // Skip "external"
+                string dllPath = tokens[pos++].Trim('"');
+                Expect(tokens, ref pos, "fun");
+
+                // Parse external function (no body, ends with ";")
+                var func = new Function { IsExternal = true, DllPath = dllPath };
+                func.Name = tokens[pos++];
+                Expect(tokens, ref pos, "(");
+                func.Parameters = ParseParams(tokens, ref pos);
+                Expect(tokens, ref pos, "->");
+                func.ReturnType = ParseType(tokens[pos++]);
+                Expect(tokens, ref pos, ";"); // External functions end with ";"
+
+                program.Functions.Add(func);
+            }
+            else if (tokens[pos] == "fun")
+            {
+                pos++; // Skip "fun"
                 var func = ParseFunction(tokens, ref pos);
                 program.Functions.Add(func);
             }
             else
             {
-                pos++; // Skip unrecognized tokens
+                pos++;
             }
         }
 
@@ -28,27 +45,25 @@ public class Parser
 
     private Function ParseFunction(List<string> tokens, ref int pos)
     {
-        _currentFunc = new Function { Name = tokens[pos++] }; // Set function name
+        var func = new Function { Name = tokens[pos++] };
 
         // Parse parameters
         Expect(tokens, ref pos, "(");
-        _currentFunc.Parameters = ParseParams(tokens, ref pos);
+        func.Parameters = ParseParams(tokens, ref pos);
         Expect(tokens, ref pos, "->");
-        _currentFunc.ReturnType = ParseType(tokens[pos++]);
+        func.ReturnType = ParseType(tokens[pos++]);
 
         // Parse function body
         Expect(tokens, ref pos, "{");
-        _currentFunc.Operations = ParseBlock(tokens, ref pos);
+        func.Operations = ParseBlock(tokens, ref pos);
 
-        var parsedFunc = _currentFunc;
-        _currentFunc = null; // Reset current function
-        return parsedFunc;
+        return func;
     }
 
     private List<ValueObject> ParseParams(List<string> tokens, ref int pos)
     {
         var parameters = new List<ValueObject>();
-        while (tokens[pos] != ")")
+        while (pos < tokens.Count && tokens[pos] != ")")
         {
             var param = new ValueObject { Name = tokens[pos++] }; // Parameter name
             Expect(tokens, ref pos, ":");

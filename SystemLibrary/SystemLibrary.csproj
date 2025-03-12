@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <Platforms>x64</Platforms>
+    <OutputType>Library</OutputType>
+    <RootNamespace>SystemLibrary</RootNamespace>
+    <AssemblyName>SystemLibrary</AssemblyName>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    
+    <!-- Force 64-bit exports -->
+    <DllExportPlatform>x64</DllExportPlatform>
+    <DllExportConvention>StdCall</DllExportConvention>
+    <FrameworkPathOverride>C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.7.2</FrameworkPathOverride>
+    
+    <!-- Critical: Prevent compiler optimization -->
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="UnmanagedExports" Version="1.2.7" />
+  </ItemGroup>
+</Project>
